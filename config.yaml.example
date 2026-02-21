@@ -1,0 +1,89 @@
+# Nadir Router Configuration Example
+# Copy this file to config.yaml and fill in your values
+
+# Server settings
+server:
+  port: 8856
+  host: "127.0.0.1"
+
+# LiteLLM backend
+litellm:
+  base_url: "YOUR_LITELLM_BASE_URL"  # e.g., "https://your-litellm.example.com/v1"
+  api_key: "YOUR_LITELLM_API_KEY"     # Your LiteLLM API key
+  timeout_ms: 180000  # 3 minutes
+
+# Available models and their context windows
+# Add your available models here
+models:
+  # Example models - replace with your actual models
+  example-model-1:
+    context_window: 128000
+  example-model-2:
+    context_window: 200000
+  # Add more models as needed...
+
+# Routing profiles
+routing:
+  # Default profile - balanced
+  auto:
+    SIMPLE:
+      primary: "example-model-1"
+      fallback: ["example-model-2"]
+    MEDIUM:
+      primary: "example-model-1"
+      fallback: ["example-model-2"]
+    COMPLEX:
+      primary: "example-model-2"
+      fallback: ["example-model-1"]
+    REASONING:
+      primary: "example-model-2"
+      fallback: ["example-model-1"]
+
+  # Cheapest options
+  eco:
+    SIMPLE:
+      primary: "example-model-1"
+      fallback: []
+    MEDIUM:
+      primary: "example-model-1"
+      fallback: []
+    COMPLEX:
+      primary: "example-model-1"
+      fallback: []
+    REASONING:
+      primary: "example-model-1"
+      fallback: []
+
+  # Best quality
+  premium:
+    SIMPLE:
+      primary: "example-model-2"
+      fallback: ["example-model-1"]
+    MEDIUM:
+      primary: "example-model-2"
+      fallback: ["example-model-1"]
+    COMPLEX:
+      primary: "example-model-2"
+      fallback: ["example-model-1"]
+    REASONING:
+      primary: "example-model-2"
+      fallback: ["example-model-1"]
+
+  # Free models only
+  free:
+    SIMPLE:
+      primary: "example-model-1"
+      fallback: []
+    MEDIUM:
+      primary: "example-model-1"
+      fallback: []
+    COMPLEX:
+      primary: "example-model-1"
+      fallback: []
+    REASONING:
+      primary: "example-model-1"
+      fallback: []
+
+# Logging
+logging:
+  level: "info"  # debug, info, warn, error
