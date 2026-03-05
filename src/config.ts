@@ -22,10 +22,25 @@ export type ModelConfig = {
   context_window: number;
 };
 
+export type ClarifierTriggerConfig = {
+  min_tier: Tier;           // 触发预处理的最低 tier
+  max_input_tokens: number; // 输入太长跳过预处理
+};
+
+export type ClarifierConfig = {
+  enabled: boolean;
+  model: string;            // 预处理用的便宜模型
+  max_tokens: number;       // 预处理输出限制
+  timeout_ms: number;       // 预处理超时
+  max_rounds: number;         // 最大澄清轮次
+  trigger: ClarifierTriggerConfig;
+};
+
 export type Config = {
   server: {
     port: number;
     host: string;
+    auth_token?: string;  // 可选的认证 token
   };
   litellm: {
     base_url: string;
@@ -34,6 +49,8 @@ export type Config = {
   };
   models: Record<string, ModelConfig>;
   routing: Record<Profile, Record<Tier, TierConfig>>;
+  multimodal_models?: string[];  // 支持多模态的模型列表
+  clarifier?: ClarifierConfig;  // 任务预处理配置
   logging: {
     level: string;
   };
@@ -123,6 +140,17 @@ export function getConfig(): Config {
         MEDIUM: { primary: "doubao-seed-code", fallback: [] },
         COMPLEX: { primary: "doubao-seed-code", fallback: [] },
         REASONING: { primary: "doubao-seed-code", fallback: [] },
+      },
+    },
+    clarifier: {
+      enabled: true,
+      model: "doubao-seed-code",
+      max_tokens: 300,
+      timeout_ms: 10000,
+      trigger: {
+        min_tier: "COMPLEX",
+        ambiguous_only: false,
+        max_input_tokens: 3000,
       },
     },
     logging: {

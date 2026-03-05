@@ -26,9 +26,14 @@ Thumbs.db
 *.log
 logs/
 
+# Database
+data/
+
 # Test
 coverage/
 .nyc_output/
+*.test.js
+test-*.js
 
 # Temporary files
 tmp/
