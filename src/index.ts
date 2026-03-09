@@ -49,6 +49,10 @@ import {
   type RoutingDecision,
   type RoutingConfig,
 } from "./router/index.js";
+import {
+  normalizeChunk,
+  normalizeCompletionResponse,
+} from "./response-normalizer.js";
 
 // Load configuration from config.yaml
 const config = getGlobalConfig();
@@ -180,7 +184,7 @@ function buildModelList() {
 
 /**
  * Pipe SSE stream from upstream to client directly.
- * Just pass through - LiteLLM returns proper OpenAI-compatible SSE.
+ * Normalize chunks to handle different model response formats.
  */
 async function pipeSSEStream(
   res: ServerResponse,
@@ -193,6 +197,7 @@ async function pipeSSEStream(
   }
 
   const decoder = new TextDecoder();
+  let buffer = ""; // 用于累积不完整的 chunk
 
   try {
     while (true) {
@@ -205,10 +210,28 @@ async function pipeSSEStream(
       if (done) break;
 
       const chunk = decoder.decode(value, { stream: true });
-      if (!safeWrite(res, chunk)) {
-        console.log(`[NadirRouter] Write failed`);
-        break;
+      buffer += chunk;
+
+      // 按行处理，确保每行都是完整的 SSE 事件
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || ""; // 保留最后一个可能不完整的行
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        
+        // 标准化每个 chunk
+        const normalizedLine = normalizeChunk(line + "\n");
+        if (!safeWrite(res, normalizedLine)) {
+          console.log(`[NadirRouter] Write failed`);
+          break;
+        }
       }
+    }
+
+    // 处理剩余的 buffer
+    if (buffer.trim()) {
+      const normalizedLine = normalizeChunk(buffer + "\n");
+      safeWrite(res, normalizedLine);
     }
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
@@ -642,16 +665,26 @@ async function handleRequest(
       }
     }
   } else {
-    // Non-streaming: forward as-is, log token usage
+    // Non-streaming: normalize response format, then forward
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     res.writeHead(upstream.status, headers);
     const responseBuffer = await upstream.arrayBuffer();
     const responseText = Buffer.from(responseBuffer).toString();
-    res.end(responseText);
+    
+    // 标准化响应格式（处理 content 为 null 但 reasoning_content 有值的情况）
+    let normalizedText = responseText;
+    try {
+      const rsp = JSON.parse(responseText);
+      const normalizedRsp = normalizeCompletionResponse(rsp);
+      normalizedText = JSON.stringify(normalizedRsp);
+    } catch {
+      // JSON 解析失败，使用原始响应
+    }
+    res.end(normalizedText);
     
     // Log token usage and record to DB
     try {
-      const rsp = JSON.parse(responseText);
+      const rsp = JSON.parse(normalizedText);
       const usage = rsp.usage;
       if (usage) {
         console.log(`[NadirRouter] Response ${upstream.status} | model=${modelId} | tokens: prompt=${usage.prompt_tokens} completion=${usage.completion_tokens} total=${usage.total_tokens} | latency=${latencyMs}ms`);
